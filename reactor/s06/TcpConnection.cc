@@ -20,20 +20,20 @@
 
 using namespace muduo;
 
-TcpConnection::TcpConnection(EventLoop* loop,
-                             const std::string& nameArg,
+TcpConnection::TcpConnection(EventLoop *loop,
+                             const std::string &nameArg,
                              int sockfd,
-                             const InetAddress& localAddr,
-                             const InetAddress& peerAddr)
-  : loop_(CHECK_NOTNULL(loop)),
-    name_(nameArg),
-    state_(kConnecting),
-    socket_(new Socket(sockfd)),
-    channel_(new Channel(loop, sockfd)),
-    localAddr_(localAddr),
-    peerAddr_(peerAddr)
+                             const InetAddress &localAddr,
+                             const InetAddress &peerAddr)
+    : loop_(CHECK_NOTNULL(loop)),
+      name_(nameArg),
+      state_(kConnecting),
+      socket_(new Socket(sockfd)),
+      channel_(new Channel(loop, sockfd)),
+      localAddr_(localAddr),
+      peerAddr_(peerAddr)
 {
-  LOG_DEBUG << "TcpConnection::ctor[" <<  name_ << "] at " << this
+  LOG_DEBUG << "TcpConnection::ctor[" << name_ << "] at " << this
             << " fd=" << sockfd;
   channel_->setReadCallback(
       boost::bind(&TcpConnection::handleRead, this));
@@ -47,12 +47,14 @@ TcpConnection::TcpConnection(EventLoop* loop,
 
 TcpConnection::~TcpConnection()
 {
-  LOG_DEBUG << "TcpConnection::dtor[" <<  name_ << "] at " << this
+  LOG_DEBUG << "TcpConnection::dtor[" << name_ << "] at " << this
             << " fd=" << channel_->fd();
 }
 
 void TcpConnection::connectEstablished()
 {
+  // shared_from_this itself increases the count by 1
+  LOG_DEBUG << "TcpConnectionPtr use count3: " << shared_from_this().use_count() - 1;
   loop_->assertInLoopThread();
   assert(state_ == kConnecting);
   setState(kConnected);
@@ -66,7 +68,9 @@ void TcpConnection::connectDestroyed()
   assert(state_ == kConnected);
   setState(kDisconnected);
   channel_->disableAll();
+  LOG_DEBUG << "TcpConnectionPtr use count9: " << shared_from_this().use_count() - 1;
   connectionCallback_(shared_from_this());
+  LOG_DEBUG << "TcpConnectionPtr use count11: " << shared_from_this().use_count() - 1;
 
   loop_->removeChannel(get_pointer(channel_));
 }
@@ -74,12 +78,18 @@ void TcpConnection::connectDestroyed()
 void TcpConnection::handleRead()
 {
   char buf[65536];
+  LOG_DEBUG << "TcpConnectionPtr use count[channel]: " << shared_from_this().use_count() - 1;
   ssize_t n = ::read(channel_->fd(), buf, sizeof buf);
-  if (n > 0) {
+  if (n > 0)
+  {
     messageCallback_(shared_from_this(), buf, n);
-  } else if (n == 0) {
+  }
+  else if (n == 0)
+  {
     handleClose();
-  } else {
+  }
+  else
+  {
     handleError();
   }
 }
@@ -90,6 +100,7 @@ void TcpConnection::handleWrite()
 
 void TcpConnection::handleClose()
 {
+  LOG_DEBUG << "TcpConnectionPtr use count5: " << shared_from_this().use_count() - 1;
   loop_->assertInLoopThread();
   LOG_TRACE << "TcpConnection::handleClose state = " << state_;
   assert(state_ == kConnected);
